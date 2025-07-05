@@ -106,7 +106,7 @@ async function generateBankingResponse(userMessage) {
 // and handle callback Logic. 
 // Exceptions: Throws if discovery or client initialization fails. 
 async function initializeClient() {
-  const issuer = await Issuer.discover(process.env.REACT_APP_API_URL);
+  const issuer = await Issuer.discover('https://cognito-idp.us-east-2.amazonaws.com/us-east-2_Lylzuyppl');
   client = new issuer.Client({
     client_id: '4ecd14vqq0niscmt2lhv7cqac7',
     client_secret: process.env.COGNITO_CLIENT_SECRET,
@@ -191,7 +191,7 @@ function getPathFromURL(urlString) {
 // Behavior: Configure the callback route from cognito after log in.
 // Exceptions: Throws 500 error if OIDC client failed to authenticate or if authenticate fails
 // Return: Redorect tp callback route with user info stored in session or error message if failed
-app.get('/auth/callback', async (req, res) => {
+app.get(getPathFromURL('/auth/callback'), async (req, res) => {
   if (!client) {
     return res.status(500).send('OIDC client not initialized');
   }
@@ -232,7 +232,7 @@ app.get('/api/user', (req, res) => {
 // Return: Redirect to Cognito logout endpoint
 app.get('/auth/logout', (req, res) => {
   req.session.destroy();
-  const logoutUrl = `/logout?client_id=4ecd14vqq0niscmt2lhv7cqac7&logout_uri=${process.env.REACT_APP_API_URL}/`;
+  const logoutUrl = `https://us-east-2lylzuyppl.auth.us-east-2.amazoncognito.com/logout?client_id=4ecd14vqq0niscmt2lhv7cqac7&logout_uri=${process.env.REACT_APP_LOGOUT_REDIRECT_URI}`;
   res.redirect(logoutUrl);
 });
 
