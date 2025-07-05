@@ -152,7 +152,7 @@ app.get('/', checkAuth, (req, res) => {
 // Parameters: 
 // - req: The incoming request
 // - res: The outgoing response
-app.get('https://us-east-2lylzuyppl.auth.us-east-2.amazoncognito.com/auth/login', (req, res) => {
+app.get(`${process.env.WEB_COGNITO_DOMAIN}/auth/login`, (req, res) => {
   if (!client) {
     return res.status(500).send('OIDC client not initialized');
   }
