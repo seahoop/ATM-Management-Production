@@ -106,11 +106,11 @@ async function generateBankingResponse(userMessage) {
 // and handle callback Logic. 
 // Exceptions: Throws if discovery or client initialization fails. 
 async function initializeClient() {
-  const issuer = await Issuer.discover('https://cognito-idp.us-east-2.amazonaws.com/us-east-2_Lylzuyppl');
+  const issuer = await Issuer.discover(process.env.REACT_APP_API_URL);
   client = new issuer.Client({
     client_id: '4ecd14vqq0niscmt2lhv7cqac7',
     client_secret: process.env.COGNITO_CLIENT_SECRET,
-    redirect_uris: ['http://localhost:5001/auth/callback'],
+    redirect_uris: ['/auth/callback'],
     response_types: ['code']
   });
   console.log('Cognito OIDC client initialized successfully');
@@ -191,7 +191,7 @@ function getPathFromURL(urlString) {
 // Behavior: Configure the callback route from cognito after log in.
 // Exceptions: Throws 500 error if OIDC client failed to authenticate or if authenticate fails
 // Return: Redorect tp callback route with user info stored in session or error message if failed
-app.get(getPathFromURL('http://localhost:5001/auth/callback'), async (req, res) => {
+app.get('/auth/callback', async (req, res) => {
   if (!client) {
     return res.status(500).send('OIDC client not initialized');
   }
@@ -199,7 +199,7 @@ app.get(getPathFromURL('http://localhost:5001/auth/callback'), async (req, res) 
   try {
     const params = client.callbackParams(req);
     const tokenSet = await client.callback(
-      'http://localhost:5001/auth/callback',
+      '/auth/callback',
       params,
       {
         nonce: req.session.nonce,
@@ -210,7 +210,7 @@ app.get(getPathFromURL('http://localhost:5001/auth/callback'), async (req, res) 
     const userInfo = await client.userinfo(tokenSet.access_token);
     req.session.userInfo = userInfo;
 
-    res.redirect('http://localhost:3000/callback');
+    res.redirect(`${process.env.REACT_APP_API_URL}/callback`);
   } catch (err) {
     console.error('Callback error:', err);
     res.status(500).send('Authentication failed: ' + err.message);
@@ -232,7 +232,7 @@ app.get('/api/user', (req, res) => {
 // Return: Redirect to Cognito logout endpoint
 app.get('/auth/logout', (req, res) => {
   req.session.destroy();
-  const logoutUrl = `https://us-east-2lylzuyppl.auth.us-east-2.amazoncognito.com/logout?client_id=4ecd14vqq0niscmt2lhv7cqac7&logout_uri=http://localhost:3000/`;
+  const logoutUrl = `/logout?client_id=4ecd14vqq0niscmt2lhv7cqac7&logout_uri=${process.env.REACT_APP_API_URL}/`;
   res.redirect(logoutUrl);
 });
 
