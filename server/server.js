@@ -7,6 +7,18 @@ const session = require("express-session");
 const cors = require("cors");
 const { Issuer, generators } = require("openid-client");
 const fetch = require("node-fetch");
+
+// For production session storage
+let sessionStore;
+if (process.env.NODE_ENV === 'production') {
+  // Use file store for production (works across processes)
+  const FileStore = require('session-file-store')(session);
+  sessionStore = new FileStore({
+    path: './sessions',
+    ttl: 86400, // 24 hours
+    reapInterval: 3600, // 1 hour
+  });
+}
 const app = express();
 const PORT = process.env.PORT || 5003;
 
@@ -47,10 +59,12 @@ app.use(
     secret: process.env.SESSION_SECRET || "some_secret",
     resave: true,
     saveUninitialized: true,
+    store: sessionStore, // Use file store in production
     cookie: { 
       sameSite: "lax", 
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      httpOnly: true
     },
   })
 );
@@ -285,6 +299,19 @@ app.get('/auth/callback', async (req, res) => {
     const params = client.callbackParams(req);
     console.log("Parsed callback params:", params);
     
+    // Check if session state/nonce are missing (session storage issue)
+    if (!req.session.state || !req.session.nonce) {
+      console.error("Session state or nonce missing - session storage issue");
+      console.error("Session ID:", req.sessionID);
+      console.error("Session data:", req.session);
+      
+      // Redirect to login with error message
+      const frontendUrl = process.env.NODE_ENV === 'production' 
+        ? process.env.FRONTEND_URL 
+        : process.env.FRONTEND_URL_LOCAL;
+      return res.redirect(`${frontendUrl}/?error=session_lost`);
+    }
+    
     // Determine the correct callback URL based on environment
     const callbackUrl = process.env.NODE_ENV === 'production' 
       ? `${process.env.BACKEND_URL}/auth/callback`
@@ -318,7 +345,12 @@ app.get('/auth/callback', async (req, res) => {
       checks: err.checks,
       params: err.params
     });
-    res.status(500).send("Authentication failed: " + err.message);
+    
+    // Redirect to login with error message
+    const frontendUrl = process.env.NODE_ENV === 'production' 
+      ? process.env.FRONTEND_URL 
+      : process.env.FRONTEND_URL_LOCAL;
+    res.redirect(`${frontendUrl}/?error=auth_failed`);
   }
 });
 
