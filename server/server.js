@@ -11,17 +11,47 @@ const app = express();
 const PORT = process.env.PORT || 5003;
 
 // Behavior: Middleware Set Up
-const FRONTEND_URL = process.env.NODE_ENV === 'production' 
-  ? process.env.FRONTEND_URL 
-  : (process.env.FRONTEND_URL_LOCAL || 'http://localhost:3000');
-app.use(cors({ origin: FRONTEND_URL, credentials: true }));
+const allowedOrigins = [
+  // Development URLs
+  'http://localhost:3000',
+  'http://localhost:3003',
+  'http://localhost:5003',
+  
+  // Production URLs
+  'https://atm-mangement.vercel.app',
+  'https://atm-mangement.onrender.com',
+  'https://atm-mangement.vercel.app/',
+  'https://atm-mangement.onrender.com/',
+  
+];
+
+app.use(cors({ 
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 app.use(express.json());
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "some_secret",
-    resave: false,
-    saveUninitialized: false,
-    cookie: { sameSite: "lax", secure: false },
+    resave: true,
+    saveUninitialized: true,
+    cookie: { 
+      sameSite: "lax", 
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    },
   })
 );
 
@@ -248,13 +278,20 @@ app.get('/auth/callback', async (req, res) => {
   }
 
   try {
+    console.log("Callback received with params:", req.query);
+    console.log("Session state:", req.session.state);
+    console.log("Session nonce:", req.session.nonce);
+    
     const params = client.callbackParams(req);
+    console.log("Parsed callback params:", params);
     
     // Determine the correct callback URL based on environment
     const callbackUrl = process.env.NODE_ENV === 'production' 
       ? `${process.env.BACKEND_URL}/auth/callback`
       : `${process.env.BACKEND_URL_LOCAL}/auth/callback`;
       
+    console.log("Using callback URL:", callbackUrl);
+    
     const tokenSet = await client.callback(
       callbackUrl,
       params,
@@ -272,9 +309,15 @@ app.get('/auth/callback', async (req, res) => {
       ? process.env.FRONTEND_URL 
       : process.env.FRONTEND_URL_LOCAL;
       
+    console.log("Redirecting to frontend:", frontendUrl);
     res.redirect(`${frontendUrl}/callback`);
   } catch (err) {
     console.error("Callback error:", err);
+    console.error("Error details:", {
+      message: err.message,
+      checks: err.checks,
+      params: err.params
+    });
     res.status(500).send("Authentication failed: " + err.message);
   }
 });
