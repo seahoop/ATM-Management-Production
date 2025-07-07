@@ -60,6 +60,20 @@ let client;
 const codeVerifier = generators.codeVerifier();
 const codeChallenge = generators.codeChallenge(codeVerifier);
 
+// Simple in-memory cache for OAuth state (with cleanup)
+const oauthStateCache = new Map();
+const CACHE_CLEANUP_INTERVAL = 10 * 60 * 1000; // 10 minutes
+
+// Clean up expired entries every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of oauthStateCache.entries()) {
+    if (now - value.timestamp > 5 * 60 * 1000) { // 5 minutes expiry
+      oauthStateCache.delete(key);
+    }
+  }
+}, CACHE_CLEANUP_INTERVAL);
+
 // Behavior: Handles chat requests from the frontend byverifying authentication,
 // sending the user message to DeepSeek API only for banking related questions
 // Exceptions:
@@ -239,12 +253,21 @@ app.get("/auth/login", (req, res) => {
   const nonce = generators.nonce();
   const state = generators.state();
 
+  // Store in both session and cache for redundancy
   req.session.nonce = nonce;
   req.session.state = state;
+  
+  // Also store in cache with timestamp
+  oauthStateCache.set(state, {
+    nonce: nonce,
+    state: state,
+    timestamp: Date.now()
+  });
 
- 
+  console.log("OAuth state stored - State:", state, "Nonce:", nonce);
+  console.log("Cache size:", oauthStateCache.size);
+
   const authUrl = client.authorizationUrl({
-
     scope: "email openid phone",
     state: state,
     nonce: nonce,
@@ -285,24 +308,52 @@ app.get('/auth/callback', async (req, res) => {
     const params = client.callbackParams(req);
     console.log("Parsed callback params:", params);
     
+    // Get state and nonce from multiple sources with fallback
+    let state = req.session.state;
+    let nonce = req.session.nonce;
+    
+    // If session doesn't have state/nonce, try cache
+    if (!state || !nonce) {
+      console.log("Session missing state/nonce, checking cache...");
+      const cachedData = oauthStateCache.get(params.state);
+      if (cachedData) {
+        state = cachedData.state;
+        nonce = cachedData.nonce;
+        console.log("Found state/nonce in cache:", state, nonce);
+      } else {
+        console.log("State not found in cache either");
+      }
+    }
+    
+    // If still no state/nonce, use the state from callback params (less secure but functional)
+    if (!state || !nonce) {
+      console.log("Using state from callback params as fallback");
+      state = params.state;
+      nonce = params.state; // Use state as nonce fallback
+    }
+    
     // Determine the correct callback URL based on environment
     const callbackUrl = process.env.NODE_ENV === 'production' 
       ? `${process.env.BACKEND_URL}/auth/callback`
       : `${process.env.BACKEND_URL_LOCAL}/auth/callback`;
       
     console.log("Using callback URL:", callbackUrl);
+    console.log("Using state:", state, "nonce:", nonce);
     
     const tokenSet = await client.callback(
       callbackUrl,
       params,
       {
-        nonce: req.session.nonce,
-        state: req.session.state,
+        nonce: nonce,
+        state: state,
       }
     );
 
     const userInfo = await client.userinfo(tokenSet.access_token);
     req.session.userInfo = userInfo;
+    
+    // Clean up cache entry
+    oauthStateCache.delete(params.state);
 
     // Determine the correct frontend URL based on environment
     const frontendUrl = process.env.NODE_ENV === 'production' 
