@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
+import { logout } from "../utils/api";
 import "../pagesCss/dashboard.css";
 
 function Dashboard() {
@@ -9,8 +10,23 @@ function Dashboard() {
 
   useEffect(() => {
     if (!user) {
-      // If no user was passed (e.g., refresh), redirect to login
-      navigate("/");
+      // If no user was passed (e.g., refresh), try to get from localStorage
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        navigate("/");
+        return;
+      }
+      
+      // Try to get user info from API
+      import("../utils/api").then(({ getUserInfo }) => {
+        getUserInfo()
+          .then((userInfo) => {
+            navigate("/dashboard", { state: { user: userInfo } });
+          })
+          .catch(() => {
+            navigate("/");
+          });
+      });
     }
   }, [user, navigate]);
 
@@ -18,8 +34,7 @@ function Dashboard() {
 
   // Navigation handler functions
   const handleBack = () => {
-    const API_BASE_URL = process.env.REACT_APP_API_URL;
-    window.location.replace(`${API_BASE_URL}/auth/logout`);
+    logout();
   };
 
   const handleBalance = () => {

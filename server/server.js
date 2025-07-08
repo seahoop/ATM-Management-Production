@@ -12,6 +12,7 @@ const PORT = process.env.PORT || 5003;
 const SQLiteStore = require('connect-sqlite3')(session);
 const fs = require('fs');
 const path = require('path');
+const jwt = require('jsonwebtoken');
 
 // Ensure db directory exists for SQLite
 if (process.env.NODE_ENV === 'production') {
@@ -70,7 +71,7 @@ app.use(
       maxAge: 24 * 60 * 60 * 1000,
       httpOnly: true,
       path: '/',
-      // domain: '.onrender.com', // Uncomment if you want to explicitly set domain
+      domain: '.onrender.com', // Allow sharing across subdomains
     },
     name: "atm-session",
   })
@@ -373,6 +374,17 @@ app.get('/auth/callback', async (req, res) => {
     const userInfo = await client.userinfo(tokenSet.access_token);
     req.session.userInfo = userInfo;
     
+    // Generate JWT token for frontend
+    const jwtToken = jwt.sign(
+      { 
+        sub: userInfo.sub, 
+        email: userInfo.email, 
+        username: userInfo.username 
+      }, 
+      process.env.SESSION_SECRET || "some_secret",
+      { expiresIn: '24h' }
+    );
+    
     // Clean up cache entry
     oauthStateCache.delete(params.state);
 
@@ -382,7 +394,8 @@ app.get('/auth/callback', async (req, res) => {
         ? process.env.FRONTEND_URL 
         : process.env.FRONTEND_URL_LOCAL;
       console.log("Redirecting to frontend:", frontendUrl);
-      res.redirect(`${frontendUrl}/callback`);
+      // Pass JWT token as URL parameter
+      res.redirect(`${frontendUrl}/callback?token=${encodeURIComponent(jwtToken)}`);
     });
   } catch (err) {
     console.error("Callback error:", err);
@@ -395,14 +408,48 @@ app.get('/auth/callback', async (req, res) => {
   }
 });
 
+// Add JWT middleware
+const authenticateJWT = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  
+  if (authHeader) {
+    const token = authHeader.split(' ')[1]; // Bearer TOKEN
+    
+    jwt.verify(token, process.env.SESSION_SECRET || "some_secret", (err, user) => {
+      if (err) {
+        console.log("JWT verification failed:", err.message);
+        return res.sendStatus(403);
+      }
+      req.user = user;
+      next();
+    });
+  } else {
+    next(); // Continue to session check
+  }
+};
+
 // Behavior: Returns the User info if available
 // Exceptions: Returns 401 error if not authenticated
 // Return:
 // - Json: userInfo Object
-app.get("/api/user", (req, res) => {
+app.get("/api/user", authenticateJWT, (req, res) => {
+  console.log("Session in /api/user:", req.session);
+  console.log("Session ID:", req.sessionID);
+  console.log("User info:", req.session.userInfo);
+  console.log("JWT user:", req.user);
+  
+  // Check JWT first, then session
+  if (req.user) {
+    console.log("Authenticated via JWT");
+    return res.json(req.user);
+  }
+  
   if (!req.session.userInfo) {
+    console.log("No user info in session, returning 401");
     return res.status(401).json({ error: "Not authenticated" });
   }
+  
+  console.log("Authenticated via session");
   res.json(req.session.userInfo);
 });
 
