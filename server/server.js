@@ -474,15 +474,27 @@ app.get("/api/user", authenticateJWT, (req, res) => {
 // Behavior: Logout route, destroys session and redirects to Cognito logout endpoint
 // Return: Redirect to Cognito logout endpoint
 app.get("/auth/logout", (req, res) => {
-  req.session.destroy();
+  console.log("Logout request received");
   
-  // Determine the correct logout redirect URI based on environment
-  const logoutRedirectUri = process.env.NODE_ENV === 'production' 
-    ? process.env.FRONTEND_URL 
-    : process.env.FRONTEND_URL_LOCAL;
+  // Clear JWT token from session
+  req.session.destroy((err) => {
+    if (err) {
+      console.error("Error destroying session:", err);
+    }
     
-  const logoutUrl = `https://us-east-2lylzuyppl.auth.us-east-2.amazoncognito.com/logout?client_id=4ecd14vqq0niscmt2lhv7cqac7&logout_uri=${logoutRedirectUri}/`;
-  res.redirect(logoutUrl);
+    // Determine the correct logout redirect URI based on environment
+    const logoutRedirectUri = process.env.NODE_ENV === 'production' 
+      ? process.env.FRONTEND_URL 
+      : process.env.FRONTEND_URL_LOCAL;
+      
+    console.log("Logout redirect URI:", logoutRedirectUri);
+    
+    // Fix the logout URL - use /logout instead of /login
+    const logoutUrl = `https://us-east-2lylzuyppl.auth.us-east-2.amazoncognito.com/logout?client_id=4ecd14vqq0niscmt2lhv7cqac7&logout_uri=${encodeURIComponent(logoutRedirectUri)}`;
+    
+    console.log("Redirecting to Cognito logout:", logoutUrl);
+    res.redirect(logoutUrl);
+  });
 });
 
 // Test endpoint to verify authentication
