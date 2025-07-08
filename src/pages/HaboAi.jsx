@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
+import { authenticatedFetch } from "../utils/api";
 import "../pagesCss/haboai.css";
 
 function HaboAi() {
@@ -50,27 +51,15 @@ function HaboAi() {
     setMessages((prev) => [...prev, { isTyping: true, sender: "ai" }]);
 
     try {
-      // Call our server endpoint which will handle the DeepSeek API
-      const API_BASE_URL = process.env.REACT_APP_API_URL;
-      const response = await fetch(`${API_BASE_URL}/api/chat`, {
+      // Use the authenticated API utility
+      const data = await authenticatedFetch('/api/chat', {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include", // Important for session cookies
         body: JSON.stringify({ message: userMessage }),
       });
 
       // Remove typing indicator
       setMessages((prev) => prev.filter((msg) => !msg.isTyping));
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Server error:", errorData);
-        throw new Error(errorData.error || "Failed to get response");
-      }
-
-      const data = await response.json();
       setMessages((prev) => [...prev, { text: data.message, sender: "ai" }]);
     } catch (error) {
       console.error("Error chatting with AI:", error);
