@@ -1,5 +1,5 @@
 // This React component displays real-time stock data for selected companies.
-// It fetches data using the Finnhub API or fallback mock data if needed.
+// It fetches data using the backend API which proxies Finnhub API calls to avoid CORS issues.
 // It shows summarized stock cards and a detailed panel for the selected stock.
 // Supports auto-refresh every 30 seconds and manual refresh.
 
@@ -30,6 +30,9 @@ function StockMarket() {
     // Behavior: Stores interval ID to clear auto-refresh on unmount
     const [refreshInterval, setRefreshInterval] = useState(null);
 
+    // Behavior: Tracks if we're using mock data
+    const [usingMockData, setUsingMockData] = useState(false);
+
     // Behavior: Runs once on mount to fetch initial data and set interval
     useEffect(() => {
         fetchStockData();
@@ -47,24 +50,36 @@ function StockMarket() {
         };
     }, [refreshInterval]);
 
-    // Behavior: Fetches stock data from live API or mock fallback
+    // Behavior: Fetches stock data from backend API or mock fallback
     // Exceptions: If API fails, logs and falls back to mock data
     // Return: Updates `stockData` state
     const fetchStockData = async () => {
         try {
             setLoading(true);
             setError(null);
+            setUsingMockData(false);
+            
+            console.log('Attempting to fetch real-time stock data...');
+            
             try {
                 const realTimeData = await getMajorStocksData();
+                console.log('Successfully fetched real-time data:', Object.keys(realTimeData));
                 setStockData(realTimeData);
+                setUsingMockData(false);
             } catch (apiError) {
-                console.log('API not available, using mock data:', apiError);
+                console.warn('Real-time API not available, using mock data:', apiError);
                 const mockData = getMockStockData();
                 setStockData(mockData);
+                setUsingMockData(true);
+                setError('Using demo data - real-time API temporarily unavailable');
             }
         } catch (err) {
-            setError('Failed to fetch stock data. Please try again later.');
             console.error('Error fetching stock data:', err);
+            setError('Failed to fetch stock data. Please try again later.');
+            // Fallback to mock data even if there's an error
+            const mockData = getMockStockData();
+            setStockData(mockData);
+            setUsingMockData(true);
         } finally {
             setLoading(false);
         }
@@ -72,7 +87,13 @@ function StockMarket() {
 
     // Behavior: If no user is passed in location state, display error
     if (!user) {
-        return <div className="stock-market-container">No user data available.</div>;
+        return (
+            <div className="stock-market-container">
+                <div className="error-message">
+                    No user data available. Please log in to access the stock market.
+                </div>
+            </div>
+        );
     }
 
     // Behavior: Navigate back to dashboard, preserving user state
@@ -82,6 +103,7 @@ function StockMarket() {
 
     // Behavior: Formats large numbers into human-readable string (e.g., 1.2M)
     const formatNumber = (num) => {
+        if (!num || isNaN(num)) return 'N/A';
         if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
         if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
         if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
@@ -91,6 +113,7 @@ function StockMarket() {
 
     // Behavior: Formats a number as USD currency string
     const formatPrice = (price) => {
+        if (!price || isNaN(price)) return '$0.00';
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
             currency: 'USD',
@@ -104,6 +127,8 @@ function StockMarket() {
     // - stockKey: String key identifier
     // - data: Stock data object
     const StockCard = ({ stockKey, data }) => {
+        if (!data) return null;
+        
         const isPositive = data.change >= 0;
         const isSelected = selectedStock === stockKey;
 
@@ -113,14 +138,14 @@ function StockMarket() {
                 onClick={() => setSelectedStock(stockKey)}
             >
                 <div className="stock-header">
-                    <h3>{data.symbol}</h3>
-                    <span className="company-name">{data.companyName}</span>
+                    <h3>{data.symbol || 'N/A'}</h3>
+                    <span className="company-name">{data.companyName || 'Unknown Company'}</span>
                 </div>
                 
                 <div className="stock-price">
                     <span className="current-price">{formatPrice(data.currentPrice)}</span>
                     <span className={`price-change ${isPositive ? 'positive' : 'negative'}`}>
-                        {isPositive ? '+' : ''}{formatPrice(data.change)} ({isPositive ? '+' : ''}{data.changePercent}%)
+                        {isPositive ? '+' : ''}{formatPrice(data.change)} ({isPositive ? '+' : ''}{data.changePercent || 0}%)
                     </span>
                 </div>
 
@@ -139,7 +164,7 @@ function StockMarket() {
                     </div>
                     <div className="detail-row">
                         <span>Market Cap:</span>
-                        <span>{data.marketCap}</span>
+                        <span>{data.marketCap || 'N/A'}</span>
                     </div>
                 </div>
             </div>
@@ -150,23 +175,31 @@ function StockMarket() {
     // Parameters:
     // - data: Stock data object
     const StockDetail = ({ data }) => {
-        if (!data) return null;
+        if (!data) {
+            return (
+                <div className="stock-detail-panel">
+                    <div className="detail-header">
+                        <h2>Select a stock to view details</h2>
+                    </div>
+                </div>
+            );
+        }
 
         return (
             <div className="stock-detail-panel">
                 <div className="detail-header">
-                    <h2>{data.companyName} ({data.symbol})</h2>
+                    <h2>{data.companyName || 'Unknown Company'} ({data.symbol || 'N/A'})</h2>
                     <div className="current-price-large">
                         <span className="price">{formatPrice(data.currentPrice)}</span>
                         <span className={`change ${data.change >= 0 ? 'positive' : 'negative'}`}>
-                            {data.change >= 0 ? '+' : ''}{formatPrice(data.change)} ({data.change >= 0 ? '+' : ''}{data.changePercent}%)
+                            {data.change >= 0 ? '+' : ''}{formatPrice(data.change)} ({data.change >= 0 ? '+' : ''}{data.changePercent || 0}%)
                         </span>
                     </div>
                 </div>
 
                 <div className="company-description">
-                    <h3>About {data.companyName}</h3>
-                    <p>{data.description}</p>
+                    <h3>About {data.companyName || 'this company'}</h3>
+                    <p>{data.description || 'No description available.'}</p>
                 </div>
 
                 <div className="trading-info">
@@ -190,7 +223,7 @@ function StockMarket() {
                         </div>
                         <div className="info-item">
                             <label>Market Cap:</label>
-                            <span>{data.marketCap}</span>
+                            <span>{data.marketCap || 'N/A'}</span>
                         </div>
                         <div className="info-item">
                             <label>Change:</label>
@@ -241,6 +274,12 @@ function StockMarket() {
                 </div>
             )}
 
+            {usingMockData && (
+                <div className="error-message" style={{ background: '#FFA500', color: '#000' }}>
+                    ⚠️ Demo Mode: Showing sample data. Real-time data will be available when the API is connected.
+                </div>
+            )}
+
             <div className="stock-market-content">
                 <div className="stock-cards-container">
                     <h2>Available Stocks ({Object.keys(stockData).length})</h2>
@@ -259,6 +298,7 @@ function StockMarket() {
             <div className="stock-market-footer">
                 <p>Data refreshes automatically every 30 seconds</p>
                 <p>Last updated: {new Date().toLocaleTimeString()}</p>
+                {usingMockData && <p style={{ color: '#FFA500' }}>⚠️ Demo data mode</p>}
             </div>
         </div>
     );

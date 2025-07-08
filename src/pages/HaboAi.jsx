@@ -51,11 +51,16 @@ function HaboAi() {
     setMessages((prev) => [...prev, { isTyping: true, sender: "ai" }]);
 
     try {
+      console.log('Sending message to AI:', userMessage);
+      console.log('Current user:', user);
+      
       // Use the authenticated API utility
       const data = await authenticatedFetch('/api/chat', {
         method: "POST",
         body: JSON.stringify({ message: userMessage }),
       });
+
+      console.log('AI response received:', data);
 
       // Remove typing indicator
       setMessages((prev) => prev.filter((msg) => !msg.isTyping));
@@ -63,6 +68,10 @@ function HaboAi() {
       setMessages((prev) => [...prev, { text: data.message, sender: "ai" }]);
     } catch (error) {
       console.error("Error chatting with AI:", error);
+      console.error("Error details:", {
+        message: error.message,
+        stack: error.stack
+      });
 
       // Remove typing indicator if it exists
       setMessages((prev) => prev.filter((msg) => !msg.isTyping));

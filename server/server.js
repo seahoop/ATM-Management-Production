@@ -13,6 +13,7 @@ const SQLiteStore = require('connect-sqlite3')(session);
 const fs = require('fs');
 const path = require('path');
 const jwt = require('jsonwebtoken');
+const { setupStockRoutes } = require('./stockMarket');
 
 // Ensure db directory exists for SQLite
 if (process.env.NODE_ENV === 'production') {
@@ -96,6 +97,26 @@ setInterval(() => {
   }
 }, CACHE_CLEANUP_INTERVAL);
 
+// Add JWT middleware
+const authenticateJWT = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  
+  if (authHeader) {
+    const token = authHeader.split(' ')[1]; // Bearer TOKEN
+    
+    jwt.verify(token, process.env.SESSION_SECRET || "some_secret", (err, user) => {
+      if (err) {
+        console.log("JWT verification failed:", err.message);
+        return res.status(401).json({ error: "Invalid token" });
+      }
+      req.user = user;
+      next();
+    });
+  } else {
+    next(); // Continue to session check
+  }
+};
+
 // Behavior: Handles chat requests from the frontend byverifying authentication,
 // sending the user message to DeepSeek API only for banking related questions
 // Exceptions:
@@ -107,8 +128,17 @@ setInterval(() => {
 // Parameters:
 // - req: The incoming request containing the user message
 // - res: The outgoing response containing the AI-generated reply
-app.post("/api/chat", async (req, res) => {
-  if (!req.session.userInfo) {
+app.post("/api/chat", authenticateJWT, async (req, res) => {
+  console.log("Chat request received");
+  console.log("Authorization header:", req.headers.authorization ? "Present" : "Missing");
+  console.log("Session in /api/chat:", req.session);
+  console.log("Session ID:", req.sessionID);
+  console.log("User info:", req.session.userInfo);
+  console.log("JWT user:", req.user);
+  
+  // Check JWT first, then session
+  if (!req.user && !req.session.userInfo) {
+    console.log("No authentication found, returning 401");
     return res.status(401).json({ error: "Not authenticated" });
   }
 
@@ -119,11 +149,13 @@ app.post("/api/chat", async (req, res) => {
   }
 
   try {
+    console.log("Generating AI response for message:", message);
     const aiResponse = await generateBankingResponse(message);
+    console.log("AI response generated successfully");
     res.json({ message: aiResponse });
   } catch (error) {
     console.error("Error generating AI response:", error);
-    res.status(500).json({ error: "Failed to generate AI response" });
+    res.status(500).json({ error: "Failed to generate AI response", details: error.message });
   }
 });
 
@@ -379,11 +411,17 @@ app.get('/auth/callback', async (req, res) => {
       { 
         sub: userInfo.sub, 
         email: userInfo.email, 
-        username: userInfo.username 
+        username: userInfo.username || userInfo.email || userInfo.sub 
       }, 
       process.env.SESSION_SECRET || "some_secret",
       { expiresIn: '24h' }
     );
+    
+    console.log("Generated JWT token for user:", {
+      sub: userInfo.sub,
+      email: userInfo.email,
+      username: userInfo.username || userInfo.email || userInfo.sub
+    });
     
     // Clean up cache entry
     oauthStateCache.delete(params.state);
@@ -407,26 +445,6 @@ app.get('/auth/callback', async (req, res) => {
     res.status(500).send("Authentication failed: " + err.message);
   }
 });
-
-// Add JWT middleware
-const authenticateJWT = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  
-  if (authHeader) {
-    const token = authHeader.split(' ')[1]; // Bearer TOKEN
-    
-    jwt.verify(token, process.env.SESSION_SECRET || "some_secret", (err, user) => {
-      if (err) {
-        console.log("JWT verification failed:", err.message);
-        return res.sendStatus(403);
-      }
-      req.user = user;
-      next();
-    });
-  } else {
-    next(); // Continue to session check
-  }
-};
 
 // Behavior: Returns the User info if available
 // Exceptions: Returns 401 error if not authenticated
@@ -466,6 +484,32 @@ app.get("/auth/logout", (req, res) => {
   const logoutUrl = `https://us-east-2lylzuyppl.auth.us-east-2.amazoncognito.com/logout?client_id=4ecd14vqq0niscmt2lhv7cqac7&logout_uri=${logoutRedirectUri}/`;
   res.redirect(logoutUrl);
 });
+
+// Test endpoint to verify authentication
+app.get("/api/test-auth", authenticateJWT, (req, res) => {
+  console.log("Test auth endpoint called");
+  console.log("JWT user:", req.user);
+  console.log("Session user:", req.session.userInfo);
+  
+  if (req.user) {
+    res.json({ 
+      message: "JWT authentication successful", 
+      user: req.user,
+      authType: "JWT"
+    });
+  } else if (req.session.userInfo) {
+    res.json({ 
+      message: "Session authentication successful", 
+      user: req.session.userInfo,
+      authType: "Session"
+    });
+  } else {
+    res.status(401).json({ error: "No authentication found" });
+  }
+});
+
+// Setup stock market routes
+setupStockRoutes(app);
 
 // Behavior: Start the server
 // Return: Shows status of server
