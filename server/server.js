@@ -21,6 +21,9 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
+// Set trust proxy for secure cookies behind Cloudflare/Render
+app.set('trust proxy', 1);
+
 // Behavior: Middleware Set Up
 const allowedOrigins = [
   // Development URLs
@@ -62,10 +65,12 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      sameSite: "none", // <-- changed from 'lax' to 'none'
-      secure: true,     // <-- always true for cross-origin
+      sameSite: "none", // Required for cross-site cookies
+      secure: true,     // Required for HTTPS (Cloudflare/Render)
       maxAge: 24 * 60 * 60 * 1000,
       httpOnly: true,
+      path: '/',
+      // domain: '.onrender.com', // Uncomment if you want to explicitly set domain
     },
     name: "atm-session",
   })
@@ -371,13 +376,14 @@ app.get('/auth/callback', async (req, res) => {
     // Clean up cache entry
     oauthStateCache.delete(params.state);
 
-    // Determine the correct frontend URL based on environment
-    const frontendUrl = process.env.NODE_ENV === 'production' 
-      ? process.env.FRONTEND_URL 
-      : process.env.FRONTEND_URL_LOCAL;
-      
-    console.log("Redirecting to frontend:", frontendUrl);
-    res.redirect(`${frontendUrl}/callback`);
+    // Save session before redirecting to ensure Set-Cookie header is sent
+    req.session.save(() => {
+      const frontendUrl = process.env.NODE_ENV === 'production' 
+        ? process.env.FRONTEND_URL 
+        : process.env.FRONTEND_URL_LOCAL;
+      console.log("Redirecting to frontend:", frontendUrl);
+      res.redirect(`${frontendUrl}/callback`);
+    });
   } catch (err) {
     console.error("Callback error:", err);
     console.error("Error details:", {
