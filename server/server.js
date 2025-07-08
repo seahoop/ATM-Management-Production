@@ -9,6 +9,17 @@ const { Issuer, generators } = require("openid-client");
 const fetch = require("node-fetch");
 const app = express();
 const PORT = process.env.PORT || 5003;
+const SQLiteStore = require('connect-sqlite3')(session);
+const fs = require('fs');
+const path = require('path');
+
+// Ensure db directory exists for SQLite
+if (process.env.NODE_ENV === 'production') {
+  const dbDir = path.join(__dirname, 'db');
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir);
+  }
+}
 
 // Behavior: Middleware Set Up
 const allowedOrigins = [
@@ -44,14 +55,19 @@ app.use(cors({
 app.use(express.json());
 app.use(
   session({
+    store: process.env.NODE_ENV === 'production'
+      ? new SQLiteStore({ db: 'sessions.sqlite', dir: path.join(__dirname, 'db') })
+      : undefined,
     secret: process.env.SESSION_SECRET || "some_secret",
-    resave: true,
-    saveUninitialized: true,
-    cookie: { 
-      sameSite: "lax", 
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      httpOnly: true,
     },
+    name: "atm-session",
   })
 );
 
