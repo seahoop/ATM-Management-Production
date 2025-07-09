@@ -322,7 +322,7 @@ app.get("/auth/login", (req, res) => {
   console.log("Cache size:", oauthStateCache.size);
 
   const authUrl = client.authorizationUrl({
-    scope: "email openid phone",
+    scope: "email openid",
     state: state,
     nonce: nonce,
   });
