@@ -78,7 +78,7 @@ app.use(
   })
 );
 
-// Behavior: OIDC State
+// Behavior: OIDC States
 let client;
 const codeVerifier = generators.codeVerifier();
 const codeChallenge = generators.codeChallenge(codeVerifier);
