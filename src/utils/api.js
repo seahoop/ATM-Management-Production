@@ -1,3 +1,13 @@
+// Behavior: API utility functions for making authenticated requests to the backend
+// Exceptions:
+// - Throws if API_BASE_URL is not configured
+// - Throws if network requests fail
+// Return:
+// - Various: API responses, user info, or logout status
+// Parameters:
+// - endpoint: String representing API endpoint
+// - options: Object containing request options
+
 const API_BASE_URL = process.env.REACT_APP_API_URL;
 
 export const authenticatedFetch = async (endpoint, options = {}) => {
@@ -39,11 +49,17 @@ export const authenticatedFetch = async (endpoint, options = {}) => {
   return response.json();
 };
 
-export const getUserInfo = () => {
+export const getUserInfo = async () => {
   return authenticatedFetch('/api/user');
 };
 
-export const logout = () => {
-  localStorage.removeItem('authToken');
-  window.location.href = `${API_BASE_URL}/auth/logout`;
+export const logout = async () => {
+  try {
+    await authenticatedFetch('/auth/logout');
+  } catch (error) {
+    console.error('Logout error:', error);
+  } finally {
+    localStorage.removeItem('authToken');
+    window.location.href = '/';
+  }
 }; 

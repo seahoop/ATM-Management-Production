@@ -1,3 +1,12 @@
+// Behavior: AI chatbot component that provides banking assistance through DeepSeek API
+// Exceptions:
+// - Throws if user is not authenticated
+// - Throws if API calls fail
+// Return:
+// - JSX: Chat interface with message history and AI responses
+// Parameters:
+// - None (React component, uses location state for user data)
+
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import { authenticatedFetch } from "../utils/api";
@@ -38,56 +47,46 @@ function HaboAi() {
     navigate("/dashboard", { state: { user } });
   };
 
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!inputValue.trim() || isLoading) return;
+  const handleSendMessage = async () => {
+    if (!inputValue.trim()) return;
 
-    const userMessage = inputValue.trim();
-    setMessages((prev) => [...prev, { text: userMessage, sender: "user" }]);
+    const userMessage = {
+      text: inputValue,
+      sender: "user",
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
     setIsLoading(true);
 
-    // Show typing indicator
-    setMessages((prev) => [...prev, { isTyping: true, sender: "ai" }]);
-
     try {
-      console.log('Sending message to AI:', userMessage);
-      console.log('Current user:', user);
-      
-      // Use the authenticated API utility
-      const data = await authenticatedFetch('/api/chat', {
+      const response = await authenticatedFetch("/api/chat", {
         method: "POST",
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({ message: inputValue }),
       });
 
-      console.log('AI response received:', data);
+      const aiMessage = {
+        text: response.message,
+        sender: "ai",
+      };
 
-      // Remove typing indicator
-      setMessages((prev) => prev.filter((msg) => !msg.isTyping));
-
-      setMessages((prev) => [...prev, { text: data.message, sender: "ai" }]);
+      setMessages((prev) => [...prev, aiMessage]);
     } catch (error) {
-      console.error("Error chatting with AI:", error);
-      console.error("Error details:", {
-        message: error.message,
-        stack: error.stack
-      });
-
-      // Remove typing indicator if it exists
-      setMessages((prev) => prev.filter((msg) => !msg.isTyping));
-
-      // Show error message with details if available
-      setMessages((prev) => [
-        ...prev,
-        {
-          text: `I'm sorry, I encountered an error while processing your request: ${
-            error.message || "Unknown error"
-          }. Please try again later.`,
-          sender: "ai",
-        },
-      ]);
+      console.error("Error sending message:", error);
+      const errorMessage = {
+        text: "I'm sorry, I'm having trouble connecting right now. Please try again.",
+        sender: "ai",
+      };
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
     }
   };
 
@@ -98,49 +97,54 @@ function HaboAi() {
           <div className="haboai-logo">
             <span className="logo-text">HABO</span>
             <span className="logo-dot"></span>
-            <span className="logo-text-secondary">AI</span>
+            <span className="logo-text-secondary">BERLIN</span>
           </div>
           <button onClick={handleBack} className="back-button">
-            <span>←</span> Dashboard
+            ← Back
           </button>
         </div>
 
         <div className="chat-container">
-          <div className="chat-messages">
+          <div className="messages">
             {messages.map((message, index) => (
               <div
                 key={index}
-                className={`message ${
-                  message.sender === "user" ? "user-message" : "ai-message"
-                }`}
+                className={`message ${message.sender === "user" ? "user" : "ai"}`}
               >
-                {message.isTyping ? (
+                <div className="message-content">{message.text}</div>
+              </div>
+            ))}
+            {isLoading && (
+              <div className="message ai">
+                <div className="message-content">
                   <div className="typing-indicator">
                     <span></span>
                     <span></span>
                     <span></span>
                   </div>
-                ) : (
-                  <div className="message-text">{message.text}</div>
-                )}
+                </div>
               </div>
-            ))}
+            )}
             <div ref={messagesEndRef} />
           </div>
 
-          <form className="chat-input" onSubmit={handleSendMessage}>
-            <input
-              type="text"
+          <div className="input-container">
+            <textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
+              onKeyPress={handleKeyPress}
               placeholder="Type your message here..."
-              disabled={isLoading}
-              autoFocus
+              className="message-input"
+              rows="3"
             />
-            <button type="submit" disabled={isLoading || !inputValue.trim()}>
-              <span>Send</span>
+            <button
+              onClick={handleSendMessage}
+              disabled={isLoading || !inputValue.trim()}
+              className="send-button"
+            >
+              Send
             </button>
-          </form>
+          </div>
         </div>
       </div>
     </div>

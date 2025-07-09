@@ -1,3 +1,12 @@
+// Behavior: Main dashboard component that displays banking options and user information
+// Exceptions:
+// - Throws if user authentication fails
+// - Throws if API calls fail
+// Return:
+// - JSX: Dashboard with banking action buttons and user info
+// Parameters:
+// - None (React component, uses location state for user data)
+
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { logout } from "../utils/api";

@@ -1,3 +1,9 @@
+/* Behavior: Main application CSS styles for React app
+ * Exceptions: None
+ * Return: None (applies styles to DOM)
+ * Parameters: None
+ */
+
 .App {
   text-align: center;
 }

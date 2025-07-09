@@ -1,64 +1,84 @@
-import { useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useContext, useState } from 'react';
-import { BalanceContext } from './BalanceContext';
-import '../pagesCss/dashboard.css';
+// Behavior: Withdrawal component that allows users to withdraw funds from their account
+// Exceptions:
+// - Throws if user is not authenticated
+// - Throws if withdrawal amount is invalid or exceeds balance
+// Return:
+// - JSX: Withdrawal form with amount input and confirmation
+// Parameters:
+// - None (React component, uses location state for user data)
+
+import { useLocation, useNavigate } from "react-router-dom";
+import { useContext, useState } from "react";
+import { BalanceContext } from "./BalanceContext";
+import "../pagesCss/dashboard.css";
 
 function Withdrawl() {
-    const location = useLocation();
-    const navigate = useNavigate();
-    const user = location.state?.user;
-    const { balance, withdraw } = useContext(BalanceContext);
-    const [amount, setAmount] = useState('');
-    const [error, setError] = useState('');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const user = location.state?.user;
+  const { balance, withdraw } = useContext(BalanceContext);
+  const [amount, setAmount] = useState("");
+  const [message, setMessage] = useState("");
 
-    useEffect(() => {
-        if(!user) {
-            navigate('/')
-        }
-    }, [user, navigate]);
+  const handleBack = () => {
+    navigate("/dashboard", { state: { user } });
+  };
 
-    if(!user) return null;
-
-    const back = () => {
-        navigate('/dashboard', {state: { user }});
+  const handleWithdraw = () => {
+    const withdrawalAmount = parseFloat(amount);
+    if (isNaN(withdrawalAmount) || withdrawalAmount <= 0) {
+      setMessage("Please enter a valid amount");
+      return;
     }
+    if (withdrawalAmount > balance) {
+      setMessage("Insufficient funds");
+      return;
+    }
+    withdraw(withdrawalAmount);
+    setMessage(`Successfully withdrawn $${withdrawalAmount.toFixed(2)}`);
+    setAmount("");
+  };
 
-    const handleWithdraw = (e) => {
-        e.preventDefault();
-        const num = parseFloat(amount);
-        if (isNaN(num) || num <= 0) {
-            setError('Enter a valid positive amount');
-            return;
-        }
-        if (num > balance) {
-            setError('Insufficient funds');
-            return;
-        }
-        withdraw(num);
-        setAmount('');
-        setError('');
-    };
+  if (!user) {
+    navigate("/");
+    return null;
+  }
 
-    return (
-        <div className="balance-card">
-            <div className="balance-label">Current Balance</div>
-            <div className="balance-amount">${balance.toFixed(2)}</div>
-            <form className="balance-action-form" onSubmit={handleWithdraw}>
-                <input
-                    className="balance-input"
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={amount}
-                    onChange={e => setAmount(e.target.value)}
-                    placeholder="Enter amount to withdraw"
-                />
-                <button className="balance-action-btn" type="submit">Withdraw</button>
-            </form>
-            {error && <div className="balance-error">{error}</div>}
-            <button className="balance-action-btn" onClick={back}>Back to Dashboard</button>
+  return (
+    <div className="dashboard-container">
+      <div className="dashboard-card">
+        <div className="dashboard-header">
+          <div className="dashboard-logo">
+            <span className="logo-text">HABO</span>
+            <span className="logo-dot"></span>
+            <span className="logo-text-secondary">BERLIN</span>
+          </div>
         </div>
-    );
+
+        <h1 className="dashboard-title">Withdraw Funds</h1>
+
+        <div className="withdrawal-form">
+          <p className="current-balance">Current Balance: ${balance.toLocaleString()}</p>
+          <input
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="Enter amount"
+            className="withdrawal-input"
+          />
+          <button onClick={handleWithdraw} className="withdrawal-button">
+            Withdraw
+          </button>
+          {message && <p className="message">{message}</p>}
+        </div>
+
+        <button onClick={handleBack} className="logout-button">
+          <span className="logout-icon">←</span>
+          Back to Dashboard
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default Withdrawl;

@@ -1,3 +1,11 @@
+// Behavior: Main React application component that sets up routing and provides balance context
+// Exceptions:
+// - None (React component)
+// Return:
+// - JSX: The complete application with routing and context providers
+// Parameters:
+// - None (React component)
+
 import './App.css';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Login from './pages/logIn';

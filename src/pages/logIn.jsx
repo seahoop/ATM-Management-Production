@@ -1,3 +1,11 @@
+// Behavior: Login page component that handles user authentication initiation
+// Exceptions:
+// - Throws if API_BASE_URL is not configured
+// Return:
+// - JSX: Login page with authentication button
+// Parameters:
+// - None (React component)
+
 import "../pagesCss/logIn.css";
 
 function Login() {

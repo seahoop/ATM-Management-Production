@@ -1,3 +1,11 @@
+// Behavior: React context provider that manages global balance state and banking operations
+// Exceptions:
+// - None (React context)
+// Return:
+// - Context Provider: Provides balance state and operations to child components
+// Parameters:
+// - children: React components that will consume the balance context
+
 import React, { createContext, useState } from 'react';
 
 export const BalanceContext = createContext();

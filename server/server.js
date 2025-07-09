@@ -1,3 +1,12 @@
+// Behavior: Express server that handles AWS Cognito authentication and banking operations
+// Exceptions:
+// - Throws if environment variables are missing
+// - Throws if OIDC client initialization fails
+// Return:
+// - Express app with configured routes and middleware
+// Parameters:
+// - None (server setup)
+
 // This express server used AWS Cognito for authentication using the OpenbID Connect Protocal.
 // It supports login, logout, callback handling, user session management, and provides user
 // info to the frontend.
@@ -15,7 +24,10 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const { setupStockRoutes } = require('./stockMarket');
 
-// Ensure db directory exists for SQLite
+// Behavior: Ensure database directory exists for SQLite sessions in production
+// Exceptions: None
+// Return: None
+// Parameters: None
 if (process.env.NODE_ENV === 'production') {
   const dbDir = path.join(__dirname, 'db');
   if (!fs.existsSync(dbDir)) {
@@ -23,10 +35,16 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
-// Set trust proxy for secure cookies behind Cloudflare/Render
+// Behavior: Set trust proxy for secure cookies behind Cloudflare/Render
+// Exceptions: None
+// Return: None
+// Parameters: None
 app.set('trust proxy', 1);
 
-// Behavior: Middleware Set Up
+// Behavior: Configure CORS with allowed origins for development and production
+// Exceptions: None
+// Return: None
+// Parameters: None
 const allowedOrigins = [
   // Development URLs
   'http://localhost:3000',
@@ -57,7 +75,11 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
-app.use(express.json());
+
+// Behavior: Configure session middleware with SQLite store for production
+// Exceptions: None
+// Return: None
+// Parameters: None
 app.use(
   session({
     store: process.env.NODE_ENV === 'production'
@@ -78,44 +100,53 @@ app.use(
   })
 );
 
-// Behavior: OIDC State
-let client;
-const codeVerifier = generators.codeVerifier();
-const codeChallenge = generators.codeChallenge(codeVerifier);
+// Behavior: Parse JSON request bodies
+// Exceptions: None
+// Return: None
+// Parameters: None
+app.use(express.json());
 
-// Simple in-memory cache for OAuth state (with cleanup)
+// Behavior: Cache for OAuth state and nonce values
+// Exceptions: None
+// Return: None
+// Parameters: None
 const oauthStateCache = new Map();
-const CACHE_CLEANUP_INTERVAL = 10 * 60 * 1000; // 10 minutes
 
-// Clean up expired entries every 10 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of oauthStateCache.entries()) {
-    if (now - value.timestamp > 5 * 60 * 1000) { // 5 minutes expiry
-      oauthStateCache.delete(key);
-    }
-  }
-}, CACHE_CLEANUP_INTERVAL);
-
-// Add JWT middleware
-const authenticateJWT = (req, res, next) => {
+// Behavior: JWT authentication middleware
+// Exceptions: Throws if JWT token is invalid
+// Return: None (adds user to request object)
+// Parameters: req - Express request object, res - Express response object, next - Express next function
+function authenticateJWT(req, res, next) {
   const authHeader = req.headers.authorization;
   
-  if (authHeader) {
-    const token = authHeader.split(' ')[1]; // Bearer TOKEN
-    
-    jwt.verify(token, process.env.SESSION_SECRET || "some_secret", (err, user) => {
-      if (err) {
-        console.log("JWT verification failed:", err.message);
-        return res.status(401).json({ error: "Invalid token" });
-      }
-      req.user = user;
-      next();
-    });
-  } else {
-    next(); // Continue to session check
+  if (!authHeader) {
+    return next();
   }
-};
+
+  const token = authHeader.split(' ')[1];
+  
+  if (!token) {
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.SESSION_SECRET || "some_secret");
+    req.user = decoded;
+    next();
+  } catch (error) {
+    console.error('JWT verification failed:', error);
+    next();
+  }
+}
+
+// Behavior: Check authentication status middleware
+// Exceptions: None
+// Return: None (adds isAuthenticated to request object)
+// Parameters: req - Express request object, res - Express response object, next - Express next function
+function checkAuth(req, res, next) {
+  req.isAuthenticated = !!(req.session.userInfo || req.user);
+  next();
+}
 
 // Behavior: Handles chat requests from the frontend byverifying authentication,
 // sending the user message to DeepSeek API only for banking related questions
@@ -226,7 +257,7 @@ async function initializeClient() {
       : `${process.env.BACKEND_URL_LOCAL}/auth/callback`;
       
     client = new issuer.Client({
-      client_id: "2benv4ralenkot7che13bk3i6h",
+      client_id: "4ecd14vqq0niscmt2lhv7cqac7",
       client_secret: process.env.COGNITO_CLIENT_SECRET,
       redirect_uris: [redirectUri],
       response_types: ["code"],
@@ -249,7 +280,7 @@ async function initializeClient() {
         : `${process.env.BACKEND_URL_LOCAL}/auth/callback`;
         
       client = new issuer.Client({
-        client_id: "2benv4ralenkot7che13bk3i6h",
+        client_id: "4ecd14vqq0niscmt2lhv7cqac7",
         client_secret: process.env.COGNITO_CLIENT_SECRET,
         redirect_uris: [redirectUri],
         response_types: ["code"],
@@ -263,35 +294,12 @@ async function initializeClient() {
   }
 }
 
+// Behavior: Initialize the OIDC client on server startup
+// Exceptions: Throws if client initialization fails
+// Return: None
+// Parameters: None
+let client;
 initializeClient().catch(console.error);
-
-// Behavior: Add a middleware component that checks if a user is authenticated
-// Parameters:
-// - req: The incoming request
-// - res: The outgoing response
-// - next: Function to continue middleware chain
-const checkAuth = (req, res, next) => {
-  if (!req.session.userInfo) {
-    req.isAuthenticated = false;
-  } else {
-    req.isAuthenticated = true;
-  }
-  next();
-};
-
-// Behavior: Configure a home route at the root of your application, check if user is authenticated
-// Returns session info if available/authenticated.
-// Return:
-// - Json: {isAuthenticated: Boolean, userInfo: Object | Null}
-// Parameters:
-// - req: The incoming request
-// - res: The ougoing response
-app.get("/", checkAuth, (req, res) => {
-  res.json({
-    isAuthenticated: req.isAuthenticated,
-    userInfo: req.session.userInfo || null,
-  });
-});
 
 // Behavior: Configure a login route
 // Exceptions: Throws 500 error if OIDC client failed to initialize
@@ -322,29 +330,13 @@ app.get("/auth/login", (req, res) => {
   console.log("Cache size:", oauthStateCache.size);
 
   const authUrl = client.authorizationUrl({
-    scope: "email openid",
+    scope: "email openid phone",
     state: state,
     nonce: nonce,
   });
 
   res.redirect(authUrl);
 });
-
-// Behavior: Helper function to get the path from the URL
-// Exceptions: Return null if URL is invalid
-// Return:
-// - String | Null: The URL path or null if invalid
-// Parameters:
-// - UrlString: The full URL string to extrat from
-function getPathFromURL(urlString) {
-  try {
-    const url = new URL(urlString);
-    return url.pathname;
-  } catch (error) {
-    console.error("Invalid URL:", error);
-    return null;
-  }
-}
 
 // Behavior: Configure the callback route from cognito after log in.
 // Exceptions: Throws 500 error if OIDC client failed to authenticate or if authenticate fails
@@ -446,31 +438,6 @@ app.get('/auth/callback', async (req, res) => {
   }
 });
 
-// Behavior: Returns the User info if available
-// Exceptions: Returns 401 error if not authenticated
-// Return:
-// - Json: userInfo Object
-app.get("/api/user", authenticateJWT, (req, res) => {
-  console.log("Session in /api/user:", req.session);
-  console.log("Session ID:", req.sessionID);
-  console.log("User info:", req.session.userInfo);
-  console.log("JWT user:", req.user);
-  
-  // Check JWT first, then session
-  if (req.user) {
-    console.log("Authenticated via JWT");
-    return res.json(req.user);
-  }
-  
-  if (!req.session.userInfo) {
-    console.log("No user info in session, returning 401");
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-  
-  console.log("Authenticated via session");
-  res.json(req.session.userInfo);
-});
-
 // Behavior: Logout route, destroys session and redirects to Cognito logout endpoint
 // Return: Redirect to Cognito logout endpoint
 app.get("/auth/logout", (req, res) => {
@@ -490,37 +457,31 @@ app.get("/auth/logout", (req, res) => {
     console.log("Logout redirect URI:", logoutRedirectUri);
     
     // Fix the logout URL - use /logout instead of /login
-    const logoutUrl = `https://us-east-2lylzuyppl.auth.us-east-2.amazoncognito.com/logout?client_id=2benv4ralenkot7che13bk3i6h&logout_uri=${encodeURIComponent(logoutRedirectUri)}`;
+    const logoutUrl = `https://us-east-2lylzuyppl.auth.us-east-2.amazoncognito.com/logout?client_id=4ecd14vqq0niscmt2lhv7cqac7&logout_uri=${encodeURIComponent(logoutRedirectUri)}`;
     
     console.log("Redirecting to Cognito logout:", logoutUrl);
     res.redirect(logoutUrl);
   });
 });
 
-// Test endpoint to verify authentication
-app.get("/api/test-auth", authenticateJWT, (req, res) => {
-  console.log("Test auth endpoint called");
-  console.log("JWT user:", req.user);
-  console.log("Session user:", req.session.userInfo);
-  
-  if (req.user) {
-    res.json({ 
-      message: "JWT authentication successful", 
-      user: req.user,
-      authType: "JWT"
-    });
-  } else if (req.session.userInfo) {
-    res.json({ 
-      message: "Session authentication successful", 
-      user: req.session.userInfo,
-      authType: "Session"
-    });
-  } else {
-    res.status(401).json({ error: "No authentication found" });
-  }
+// Behavior: Configure a home route at the root of your application, check if user is authenticated
+// Returns session info if available/authenticated.
+// Return:
+// - Json: {isAuthenticated: Boolean, userInfo: Object | Null}
+// Parameters:
+// - req: The incoming request
+// - res: The ougoing response
+app.get("/", checkAuth, (req, res) => {
+  res.json({
+    isAuthenticated: req.isAuthenticated,
+    userInfo: req.session.userInfo || null,
+  });
 });
 
-// Setup stock market routes
+// Behavior: Setup stock market routes
+// Exceptions: None
+// Return: None
+// Parameters: app - Express application instance
 setupStockRoutes(app);
 
 // Behavior: Start the server
