@@ -490,7 +490,7 @@ app.get("/auth/logout", (req, res) => {
     console.log("Logout redirect URI:", logoutRedirectUri);
     
     // Fix the logout URL - use /logout instead of /login
-    const logoutUrl = `https://us-east-2lylzuyppl.auth.us-east-2.amazoncognito.com/logout?client_id=4ecd14vqq0niscmt2lhv7cqac7&logout_uri=${encodeURIComponent(logoutRedirectUri)}`;
+    const logoutUrl = `https://us-east-2lylzuyppl.auth.us-east-2.amazoncognito.com/logout?client_id=2benv4ralenkot7che13bk3i6h&logout_uri=${encodeURIComponent(logoutRedirectUri)}`;
     
     console.log("Redirecting to Cognito logout:", logoutUrl);
     res.redirect(logoutUrl);
