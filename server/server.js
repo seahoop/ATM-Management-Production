@@ -226,7 +226,7 @@ async function initializeClient() {
       : `${process.env.BACKEND_URL_LOCAL}/auth/callback`;
       
     client = new issuer.Client({
-      client_id: "4ecd14vqq0niscmt2lhv7cqac7",
+      client_id: "2benv4ralenkot7che13bk3i6h",
       client_secret: process.env.COGNITO_CLIENT_SECRET,
       redirect_uris: [redirectUri],
       response_types: ["code"],
