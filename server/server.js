@@ -15,6 +15,10 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const { setupStockRoutes } = require('./stockMarket');
 
+// Behavior: Import and start the keep-alive cron job to ping the backend every 14 minutes
+const keepAliveJob = require('./cron');
+keepAliveJob.start();
+
 // Ensure db directory exists for SQLite
 if (process.env.NODE_ENV === 'production') {
   const dbDir = path.join(__dirname, 'db');
