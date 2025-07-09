@@ -1,12 +1,3 @@
-// Behavior: Stock market component that displays real-time stock data for major companies
-// Exceptions:
-// - Throws if user is not authenticated
-// - Throws if stock API calls fail
-// Return:
-// - JSX: Stock market interface with real-time data and interactive charts
-// Parameters:
-// - None (React component, uses location state for user data)
-
 // This React component displays real-time stock data for selected companies.
 // It fetches data using the backend API which proxies Finnhub API calls to avoid CORS issues.
 // It shows summarized stock cards and a detailed panel for the selected stock.
@@ -59,23 +50,33 @@ function StockMarket() {
         };
     }, [refreshInterval]);
 
-    // Behavior: Fetches stock data from API or falls back to mock data
-    // Exceptions: Throws if API call fails
-    // Return: None (updates state)
-    // Parameters: None
+    // Behavior: Fetches stock data from backend API or mock fallback
+    // Exceptions: If API fails, logs and falls back to mock data
+    // Return: Updates `stockData` state
     const fetchStockData = async () => {
         try {
             setLoading(true);
             setError(null);
-            
-            const data = await getMajorStocksData();
-            setStockData(data);
             setUsingMockData(false);
-        } catch (error) {
-            console.error('Error fetching stock data:', error);
-            setError('Failed to fetch real-time data. Using mock data.');
             
-            // Fallback to mock data
+            console.log('Attempting to fetch real-time stock data...');
+            
+            try {
+                const realTimeData = await getMajorStocksData();
+                console.log('Successfully fetched real-time data:', Object.keys(realTimeData));
+                setStockData(realTimeData);
+                setUsingMockData(false);
+            } catch (apiError) {
+                console.warn('Real-time API not available, using mock data:', apiError);
+                const mockData = getMockStockData();
+                setStockData(mockData);
+                setUsingMockData(true);
+                setError('Using demo data - real-time API temporarily unavailable');
+            }
+        } catch (err) {
+            console.error('Error fetching stock data:', err);
+            setError('Failed to fetch stock data. Please try again later.');
+            // Fallback to mock data even if there's an error
             const mockData = getMockStockData();
             setStockData(mockData);
             setUsingMockData(true);
@@ -84,167 +85,220 @@ function StockMarket() {
         }
     };
 
-    // Behavior: Handles manual refresh button click
-    // Exceptions: None
-    // Return: None
-    // Parameters: None
-    const handleRefresh = () => {
-        fetchStockData();
-    };
-
-    // Behavior: Handles stock selection
-    // Exceptions: None
-    // Return: None
-    // Parameters: stockKey - String representing the selected stock
-    const handleStockSelect = (stockKey) => {
-        setSelectedStock(stockKey);
-    };
-
-    // Behavior: Handles navigation back to dashboard
-    // Exceptions: None
-    // Return: None
-    // Parameters: None
-    const handleBack = () => {
-        navigate("/dashboard", { state: { user } });
-    };
-
-    // Behavior: Formats stock price with proper decimal places
-    // Exceptions: None
-    // Return: String - Formatted price
-    // Parameters: price - Number representing stock price
-    const formatPrice = (price) => {
-        if (!price) return 'N/A';
-        return `$${parseFloat(price).toFixed(2)}`;
-    };
-
-    // Behavior: Calculates percentage change
-    // Exceptions: None
-    // Return: String - Formatted percentage change
-    // Parameters: current - Number, previous - Number
-    const formatChange = (current, previous) => {
-        if (!current || !previous) return 'N/A';
-        const change = ((current - previous) / previous) * 100;
-        return `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
-    };
-
-    // Behavior: Determines if stock price increased
-    // Exceptions: None
-    // Return: Boolean - True if price increased
-    // Parameters: current - Number, previous - Number
-    const isPositive = (current, previous) => {
-        if (!current || !previous) return false;
-        return current > previous;
-    };
-
+    // Behavior: If no user is passed in location state, display error
     if (!user) {
-        navigate("/");
-        return null;
+        return (
+            <div className="stock-market-container">
+                <div className="error-message">
+                    No user data available. Please log in to access the stock market.
+                </div>
+            </div>
+        );
     }
 
-    const selectedStockData = stockData[selectedStock];
+    // Behavior: Navigate back to dashboard, preserving user state
+    const handleBack = () => {
+        navigate('/dashboard', { state: { user } });
+    };
 
+    // Behavior: Formats large numbers into human-readable string (e.g., 1.2M)
+    const formatNumber = (num) => {
+        if (!num || isNaN(num)) return 'N/A';
+        if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
+        if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+        if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+        if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+        return num.toString();
+    };
+
+    // Behavior: Formats a number as USD currency string
+    const formatPrice = (price) => {
+        if (!price || isNaN(price)) return '$0.00';
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(price);
+    };
+
+    // Behavior: UI component to render one stock card in the left pane
+    // Parameters: 
+    // - stockKey: String key identifier
+    // - data: Stock data object
+    const StockCard = ({ stockKey, data }) => {
+        if (!data) return null;
+        
+        const isPositive = data.change >= 0;
+        const isSelected = selectedStock === stockKey;
+
+        return (
+            <div 
+                className={`stock-card ${isSelected ? 'selected' : ''}`}
+                onClick={() => setSelectedStock(stockKey)}
+            >
+                <div className="stock-header">
+                    <h3>{data.symbol || 'N/A'}</h3>
+                    <span className="company-name">{data.companyName || 'Unknown Company'}</span>
+                </div>
+                
+                <div className="stock-price">
+                    <span className="current-price">{formatPrice(data.currentPrice)}</span>
+                    <span className={`price-change ${isPositive ? 'positive' : 'negative'}`}>
+                        {isPositive ? '+' : ''}{formatPrice(data.change)} ({isPositive ? '+' : ''}{data.changePercent || 0}%)
+                    </span>
+                </div>
+
+                <div className="stock-details">
+                    <div className="detail-row">
+                        <span>High:</span>
+                        <span>{formatPrice(data.high)}</span>
+                    </div>
+                    <div className="detail-row">
+                        <span>Low:</span>
+                        <span>{formatPrice(data.low)}</span>
+                    </div>
+                    <div className="detail-row">
+                        <span>Volume:</span>
+                        <span>{formatNumber(data.volume)}</span>
+                    </div>
+                    <div className="detail-row">
+                        <span>Market Cap:</span>
+                        <span>{data.marketCap || 'N/A'}</span>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Behavior: UI component to render the full detailed view of selected stock
+    // Parameters:
+    // - data: Stock data object
+    const StockDetail = ({ data }) => {
+        if (!data) {
+            return (
+                <div className="stock-detail-panel">
+                    <div className="detail-header">
+                        <h2>Select a stock to view details</h2>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="stock-detail-panel">
+                <div className="detail-header">
+                    <h2>{data.companyName || 'Unknown Company'} ({data.symbol || 'N/A'})</h2>
+                    <div className="current-price-large">
+                        <span className="price">{formatPrice(data.currentPrice)}</span>
+                        <span className={`change ${data.change >= 0 ? 'positive' : 'negative'}`}>
+                            {data.change >= 0 ? '+' : ''}{formatPrice(data.change)} ({data.change >= 0 ? '+' : ''}{data.changePercent || 0}%)
+                        </span>
+                    </div>
+                </div>
+
+                <div className="company-description">
+                    <h3>About {data.companyName || 'this company'}</h3>
+                    <p>{data.description || 'No description available.'}</p>
+                </div>
+
+                <div className="trading-info">
+                    <h3>Trading Information</h3>
+                    <div className="info-grid">
+                        <div className="info-item">
+                            <label>Current Price:</label>
+                            <span>{formatPrice(data.currentPrice)}</span>
+                        </div>
+                        <div className="info-item">
+                            <label>Day High:</label>
+                            <span>{formatPrice(data.high)}</span>
+                        </div>
+                        <div className="info-item">
+                            <label>Day Low:</label>
+                            <span>{formatPrice(data.low)}</span>
+                        </div>
+                        <div className="info-item">
+                            <label>Volume:</label>
+                            <span>{formatNumber(data.volume)}</span>
+                        </div>
+                        <div className="info-item">
+                            <label>Market Cap:</label>
+                            <span>{data.marketCap || 'N/A'}</span>
+                        </div>
+                        <div className="info-item">
+                            <label>Change:</label>
+                            <span className={data.change >= 0 ? 'positive' : 'negative'}>
+                                {data.change >= 0 ? '+' : ''}{formatPrice(data.change)}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Behavior: If loading and no data, show loading spinner
+    if (loading && Object.keys(stockData).length === 0) {
+        return (
+            <div className="stock-market-container">
+                <div className="loading-container">
+                    <div className="loading-spinner"></div>
+                    <p>Loading stock data...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Main render
     return (
         <div className="stock-market-container">
-            <div className="stock-market-card">
-                <div className="stock-market-header">
-                    <div className="stock-market-logo">
-                        <span className="logo-text">HABO</span>
-                        <span className="logo-dot"></span>
-                        <span className="logo-text-secondary">BERLIN</span>
-                    </div>
-                    <div className="header-actions">
-                        <button onClick={handleRefresh} className="refresh-button" disabled={loading}>
-                            {loading ? 'Loading...' : '🔄 Refresh'}
-                        </button>
-                        <button onClick={handleBack} className="back-button">
-                            ← Back
-                        </button>
-                    </div>
+            <div className="stock-market-header">
+                <h1>Stock Market</h1>
+                <div className="header-controls">
+                    <button 
+                        className="refresh-btn"
+                        onClick={fetchStockData}
+                        disabled={loading}
+                    >
+                        {loading ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                    <button className="back-btn" onClick={handleBack}>
+                        Back to Dashboard
+                    </button>
                 </div>
+            </div>
 
-                <h1 className="stock-market-title">Stock Market</h1>
-                
-                {error && (
-                    <div className="error-message">
-                        {error}
-                    </div>
-                )}
+            {error && (
+                <div className="error-message">
+                    {error}
+                </div>
+            )}
 
-                {usingMockData && (
-                    <div className="mock-data-notice">
-                        Using mock data (API unavailable)
-                    </div>
-                )}
+            {usingMockData && (
+                <div className="error-message" style={{ background: '#FFA500', color: '#000' }}>
+                    ⚠️ Demo Mode: Showing sample data. Real-time data will be available when the API is connected.
+                </div>
+            )}
 
-                <div className="stock-market-content">
-                    <div className="stock-grid">
-                        {Object.entries(stockData).map(([key, stock]) => (
-                            <div
-                                key={key}
-                                className={`stock-card ${selectedStock === key ? 'selected' : ''}`}
-                                onClick={() => handleStockSelect(key)}
-                            >
-                                <div className="stock-header">
-                                    <h3 className="stock-name">{stock.name}</h3>
-                                    <span className="stock-symbol">{stock.symbol}</span>
-                                </div>
-                                <div className="stock-price">
-                                    {formatPrice(stock.price)}
-                                </div>
-                                <div className={`stock-change ${isPositive(stock.price, stock.previousClose) ? 'positive' : 'negative'}`}>
-                                    {formatChange(stock.price, stock.previousClose)}
-                                </div>
-                            </div>
+            <div className="stock-market-content">
+                <div className="stock-cards-container">
+                    <h2>Available Stocks ({Object.keys(stockData).length})</h2>
+                    <div className="stock-cards">
+                        {Object.entries(stockData).map(([key, data]) => (
+                            <StockCard key={key} stockKey={key} data={data} />
                         ))}
                     </div>
-
-                    {selectedStockData && (
-                        <div className="stock-detail-panel">
-                            <h2 className="detail-title">{selectedStockData.name} ({selectedStockData.symbol})</h2>
-                            
-                            <div className="detail-grid">
-                                <div className="detail-item">
-                                    <span className="detail-label">Current Price</span>
-                                    <span className="detail-value">{formatPrice(selectedStockData.price)}</span>
-                                </div>
-                                
-                                <div className="detail-item">
-                                    <span className="detail-label">Previous Close</span>
-                                    <span className="detail-value">{formatPrice(selectedStockData.previousClose)}</span>
-                                </div>
-                                
-                                <div className="detail-item">
-                                    <span className="detail-label">Change</span>
-                                    <span className={`detail-value ${isPositive(selectedStockData.price, selectedStockData.previousClose) ? 'positive' : 'negative'}`}>
-                                        {formatChange(selectedStockData.price, selectedStockData.previousClose)}
-                                    </span>
-                                </div>
-                                
-                                <div className="detail-item">
-                                    <span className="detail-label">High</span>
-                                    <span className="detail-value">{formatPrice(selectedStockData.high)}</span>
-                                </div>
-                                
-                                <div className="detail-item">
-                                    <span className="detail-label">Low</span>
-                                    <span className="detail-value">{formatPrice(selectedStockData.low)}</span>
-                                </div>
-                                
-                                <div className="detail-item">
-                                    <span className="detail-label">Volume</span>
-                                    <span className="detail-value">{selectedStockData.volume?.toLocaleString() || 'N/A'}</span>
-                                </div>
-                            </div>
-
-                            {selectedStockData.description && (
-                                <div className="stock-description">
-                                    <h3>About {selectedStockData.name}</h3>
-                                    <p>{selectedStockData.description}</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
                 </div>
+
+                <div className="stock-detail-container">
+                    <StockDetail data={stockData[selectedStock]} />
+                </div>
+            </div>
+
+            <div className="stock-market-footer">
+                <p>Data refreshes automatically every 30 seconds</p>
+                <p>Last updated: {new Date().toLocaleTimeString()}</p>
+                {usingMockData && <p style={{ color: '#FFA500' }}>⚠️ Demo data mode</p>}
             </div>
         </div>
     );

@@ -1,21 +1,9 @@
-// Behavior: Stock integration service that interfaces with backend API for real-time stock data
-// Exceptions:
-// - Throws if API_BASE_URL is not configured
-// - Throws if network or API error occurs
-// Return:
-// - Various: Stock quotes, profiles, and major stocks data
-// Parameters:
-// - symbol: String representing stock ticker (e.g., 'AAPL')
-
 // This module interfaces with the backend API to provide real-time stock data,
 // which proxies requests to the Finnhub API to avoid CORS issues.
 
 const API_BASE_URL = process.env.REACT_APP_API_URL;
 
-// Behavior: Helper function to check if API_BASE_URL is properly set
-// Exceptions: None
-// Return: String - API base URL with fallback
-// Parameters: None
+// Helper function to check if API_BASE_URL is properly set
 const getApiBaseUrl = () => {
   if (!API_BASE_URL) {
     console.error('REACT_APP_API_URL is not set. Please check your environment variables.');
@@ -64,7 +52,7 @@ export const getStockQuote = async (symbol) => {
 // - Object with company name, industry, market cap, etc.
 // Parameters:
 // - symbol: String representing stock ticker (e.g., 'AMZN')
-export const getStockProfile = async (symbol) => {
+export const getCompanyProfile = async (symbol) => {
   try {
     const baseUrl = getApiBaseUrl();
     const response = await fetch(`${baseUrl}/api/stock/profile/${symbol}`, {
@@ -92,14 +80,16 @@ export const getStockProfile = async (symbol) => {
   }
 };
 
-// Behavior: Get comprehensive data for major stocks (quotes + profiles) via backend proxy
-// Exceptions: Throws if network or API error occurs
+// Behavior: Get real-time data for major stocks via backend proxy
+// Combines quote and profile data into one object per stock
+// Exceptions: Throws if any API call fails
 // Return: 
-// - Object mapping stock keys to their combined quote and profile data
-// Parameters: None
+// - Object mapping lowercase stock keys to detailed data objects
 export const getMajorStocksData = async () => {
   try {
     const baseUrl = getApiBaseUrl();
+    console.log('Fetching major stocks data from:', `${baseUrl}/api/stock/major-stocks`);
+    
     const response = await fetch(`${baseUrl}/api/stock/major-stocks`, {
       method: 'GET',
       headers: {
@@ -118,6 +108,7 @@ export const getMajorStocksData = async () => {
       throw new Error('Invalid response format from API');
     }
     
+    console.log('Successfully fetched major stocks data:', Object.keys(data));
     return data;
   } catch (error) {
     console.error('Error fetching major stocks data:', error);
@@ -198,82 +189,95 @@ export const getCompanyNews = async (symbol, from, to) => {
   }
 };
 
-// Behavior: Generate mock stock data for fallback when API is unavailable
+// Behavior: Returns hardcoded mock stock data for offline testing or fallback mode
 // Exceptions: None
-// Return: 
-// - Object containing mock stock data for major companies
-// Parameters: None
+// Return:
+// - Object containing sample stock quote + profile data for 7 major companies
 export const getMockStockData = () => {
   return {
     nvidia: {
       symbol: 'NVDA',
-      name: 'NVIDIA Corporation',
-      price: 875.28,
-      previousClose: 870.43,
-      high: 880.15,
-      low: 865.20,
+      companyName: 'NVIDIA Corporation',
+      currentPrice: 485.09,
+      change: 12.45,
+      changePercent: 2.63,
+      high: 492.50,
+      low: 478.20,
       volume: 45678900,
-      description: 'NVIDIA Corporation is a technology company that designs graphics processing units (GPUs) for gaming and professional markets, as well as system on a chip units (SoCs) for the mobile computing and automotive market.'
+      marketCap: '1.2T',
+      description: 'NVIDIA Corporation designs and manufactures computer graphics processors, chipsets, and related multimedia software.'
     },
     apple: {
       symbol: 'AAPL',
-      name: 'Apple Inc.',
-      price: 198.45,
-      previousClose: 195.89,
-      high: 200.12,
-      low: 194.50,
+      companyName: 'Apple Inc.',
+      currentPrice: 175.43,
+      change: -2.15,
+      changePercent: -1.21,
+      high: 178.90,
+      low: 174.20,
       volume: 67890100,
-      description: 'Apple Inc. designs, manufactures, and markets smartphones, personal computers, tablets, wearables and accessories, and sells a variety of related services.'
+      marketCap: '2.7T',
+      description: 'Apple Inc. designs, manufactures, and markets smartphones, personal computers, tablets, wearables, and accessories worldwide.'
     },
     saudiAramco: {
       symbol: '2222.SR',
-      name: 'Saudi Aramco',
-      price: 30.85,
-      previousClose: 30.45,
-      high: 31.20,
-      low: 30.10,
+      companyName: 'Saudi Aramco',
+      currentPrice: 32.45,
+      change: 0.85,
+      changePercent: 2.69,
+      high: 32.80,
+      low: 31.90,
       volume: 12345600,
-      description: 'Saudi Arabian Oil Company is a Saudi Arabian national petroleum and natural gas company based in Dhahran, Saudi Arabia.'
+      marketCap: '2.1T',
+      description: 'Saudi Arabian Oil Company (Saudi Aramco) is the world\'s largest integrated oil and gas company, producing and exporting crude oil.'
     },
     costco: {
       symbol: 'COST',
-      name: 'Costco Wholesale Corporation',
-      price: 785.67,
-      previousClose: 780.23,
-      high: 790.45,
-      low: 778.90,
+      companyName: 'Costco Wholesale Corporation',
+      currentPrice: 678.92,
+      change: 8.76,
+      changePercent: 1.31,
+      high: 682.50,
+      low: 675.30,
       volume: 23456700,
-      description: 'Costco Wholesale Corporation operates membership warehouses that offer a selection of branded and private-label products in a range of merchandise categories.'
+      marketCap: '300B',
+      description: 'Costco Wholesale Corporation operates membership warehouses that offer branded and private-label products in a range of merchandise categories.'
     },
     amazon: {
       symbol: 'AMZN',
-      name: 'Amazon.com Inc.',
-      price: 178.12,
-      previousClose: 175.89,
-      high: 180.50,
-      low: 174.20,
-      volume: 34567800,
-      description: 'Amazon.com Inc. is an American multinational technology company focusing on e-commerce, cloud computing, digital streaming, and artificial intelligence.'
+      companyName: 'Amazon.com Inc.',
+      currentPrice: 145.67,
+      change: 3.21,
+      changePercent: 2.25,
+      high: 147.20,
+      low: 143.80,
+      volume: 56789000,
+      marketCap: '1.5T',
+      description: 'Amazon.com Inc. engages in the retail sale of consumer products and subscriptions in North America and internationally.'
     },
     microsoft: {
       symbol: 'MSFT',
-      name: 'Microsoft Corporation',
-      price: 415.26,
-      previousClose: 410.15,
-      high: 418.90,
-      low: 408.75,
-      volume: 45678900,
-      description: 'Microsoft Corporation is an American multinational technology corporation which produces computer software, consumer electronics, personal computers, and related services.'
+      companyName: 'Microsoft Corporation',
+      currentPrice: 378.85,
+      change: 5.67,
+      changePercent: 1.52,
+      high: 380.20,
+      low: 375.40,
+      volume: 34567800,
+      marketCap: '2.8T',
+      description: 'Microsoft Corporation develops, licenses, and supports software, services, devices, and solutions worldwide.'
     },
     google: {
       symbol: 'GOOGL',
-      name: 'Alphabet Inc.',
-      price: 165.78,
-      previousClose: 163.45,
-      high: 167.20,
-      low: 162.10,
-      volume: 56789000,
-      description: 'Alphabet Inc. is an American multinational technology conglomerate holding company, specializing in Internet-related services and products.'
+      companyName: 'Alphabet Inc. (Google)',
+      currentPrice: 142.56,
+      change: 2.34,
+      changePercent: 1.67,
+      high: 143.90,
+      low: 141.20,
+      volume: 45678900,
+      marketCap: '1.8T',
+      description: 'Alphabet Inc. provides online advertising services and operates Google Cloud, which offers cloud computing services.'
     }
   };
 };

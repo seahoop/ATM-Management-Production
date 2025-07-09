@@ -1,79 +1,60 @@
-// Behavior: Deposit component that allows users to add funds to their account
-// Exceptions:
-// - Throws if user is not authenticated
-// - Throws if deposit amount is invalid
-// Return:
-// - JSX: Deposit form with amount input and confirmation
-// Parameters:
-// - None (React component, uses location state for user data)
-
-import { useLocation, useNavigate } from "react-router-dom";
-import { useContext, useState } from "react";
-import { BalanceContext } from "./BalanceContext";
-import "../pagesCss/dashboard.css";
+import {useNavigate, useLocation} from "react-router-dom";
+import {useEffect, useContext, useState} from "react";
+import { BalanceContext } from './BalanceContext';
+import '../pagesCss/dashboard.css';
 
 function Deposit() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const user = location.state?.user;
-  const { deposit } = useContext(BalanceContext);
-  const [amount, setAmount] = useState("");
-  const [message, setMessage] = useState("");
+    const location = useLocation();
+    const navigate = useNavigate();
+    const user = location.state?.user;
+    const { balance, deposit } = useContext(BalanceContext);
+    const [amount, setAmount] = useState('');
+    const [error, setError] = useState('');
 
-  const handleBack = () => {
-    navigate("/dashboard", { state: { user } });
-  };
+    useEffect(() => {
+        if(!user) {
+            navigate('/')
+        }
+    }, [user, navigate]);
 
-  const handleDeposit = () => {
-    const depositAmount = parseFloat(amount);
-    if (isNaN(depositAmount) || depositAmount <= 0) {
-      setMessage("Please enter a valid amount");
-      return;
-    }
-    deposit(depositAmount);
-    setMessage(`Successfully deposited $${depositAmount.toFixed(2)}`);
-    setAmount("");
-  };
+    if(!user) return null;
 
-  if (!user) {
-    navigate("/");
-    return null;
-  }
+    const handleBack= () => {
+        navigate('/dashboard', {state: {user}});
+    };
 
-  return (
-    <div className="dashboard-container">
-      <div className="dashboard-card">
-        <div className="dashboard-header">
-          <div className="dashboard-logo">
-            <span className="logo-text">HABO</span>
-            <span className="logo-dot"></span>
-            <span className="logo-text-secondary">BERLIN</span>
-          </div>
+    const handleDeposit = (e) => {
+        e.preventDefault();
+        const num = parseFloat(amount);
+        if (isNaN(num) || num <= 0) {
+            setError('Enter a valid positive amount');
+            return;
+        }
+        deposit(num);
+        setAmount('');
+        setError('');
+    };
+
+    return (
+        <div className="balance-card">
+            <div className="balance-label">Current Balance</div>
+            <div className="balance-amount">${balance.toFixed(2)}</div>
+            <form className="balance-action-form" onSubmit={handleDeposit}>
+                <input
+                    className="balance-input"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={amount}
+                    onChange={e => setAmount(e.target.value)}
+                    placeholder="Enter amount to deposit"
+                />
+                <button className="balance-action-btn" type="submit">Deposit</button>
+            </form>
+            {error && <div className="balance-error">{error}</div>}
+            <button className="balance-action-btn" onClick={handleBack}>Back to Dashboard</button>
         </div>
-
-        <h1 className="dashboard-title">Deposit Funds</h1>
-
-        <div className="deposit-form">
-          <input
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="Enter amount"
-            className="deposit-input"
-          />
-          <button onClick={handleDeposit} className="deposit-button">
-            Deposit
-          </button>
-          {message && <p className="message">{message}</p>}
-        </div>
-
-        <button onClick={handleBack} className="logout-button">
-          <span className="logout-icon">←</span>
-          Back to Dashboard
-        </button>
-      </div>
-    </div>
-  );
+    );
 }
 
 export default Deposit;

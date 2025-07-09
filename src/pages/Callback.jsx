@@ -1,12 +1,3 @@
-// Behavior: OAuth callback handler that processes authentication tokens and redirects users
-// Exceptions:
-// - Throws if JWT token parsing fails
-// - Throws if API call to /api/user fails
-// Return:
-// - None (redirects to dashboard or login page)
-// Parameters:
-// - None (React component, uses URL parameters and location state)
-
 import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -60,16 +51,26 @@ function Callback() {
   }, [navigate, location]);
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      height: '100vh',
-      background: 'linear-gradient(135deg, #00C2FF 0%, #0066FF 100%)',
-      color: 'white',
-      fontSize: '18px'
-    }}>
-      Processing authentication...
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100vh",
+        background: "#121212",
+        color: "#00C2FF",
+        fontFamily: "Space Grotesk, sans-serif",
+      }}
+    >
+      <div
+        style={{
+          textAlign: "center",
+          animation: "pulse 1.5s infinite",
+        }}
+      >
+        <h2>Logging in to Habo Banking...</h2>
+        <div style={{ marginTop: "20px" }}>Please wait</div>
+      </div>
     </div>
   );
 }
