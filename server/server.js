@@ -34,10 +34,10 @@ const allowedOrigins = [
   'http://localhost:5003',
   
   // Production URLs
-  'https://atm-mangement.vercel.app',
-  'https://atm-mangement.onrender.com',
-  'https://atm-mangement.vercel.app/',
-  'https://atm-mangement.onrender.com/',
+  'https://atm-management-production.vercel.app',
+  'https://atm-management-production.onrender.com',
+  'https://atm-management-production.vercel.app/',
+  'https://atm-management-production.onrender.com/',
   
 ];
 
